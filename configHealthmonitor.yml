@@ -1,0 +1,48 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip }}"
+
+  roles:
+    - role: avinetworks.avisdk  
+  
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+      
+    - name: Create a HTTP health monitor
+      avi_healthmonitor:
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant | default('admin') }}"
+        http_monitor:
+          http_request: HEAD / HTTP/1.0
+          http_response_code:
+            - HTTP_2XX
+            - HTTP_3XX
+        monitor_port : "{{http_monitor_port}}"  
+        receive_timeout: 4
+        failed_checks: 3
+        send_interval: 10
+        successful_checks: 3
+        type: HEALTH_MONITOR_HTTP
+        name: "{{http_hm_name}}}}"

@@ -1,0 +1,38 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+  
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip }}"
+
+  roles:
+    - role: avinetworks.avisdk
+
+  tasks:
+    - name: Upload or Update SSL certificate
+      avi_sslkeyandcertificate:
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant }}"
+        key_passphrase: "{{ item.key_passphrase }}"
+        type: "{{ item.cert_type }}"
+        name: "{{ item.cert_name }}"
+        key: |
+          -----BEGIN ENCRYPTED PRIVATE KEY-----
+        
+          -----END ENCRYPTED PRIVATE KEY-----
+        certificate:
+          certificate: |
+            -----BEGIN CERTIFICATE-----
+            
+            -----END CERTIFICATE-----
+      with_items:
+        - "{{ certificates }}"      

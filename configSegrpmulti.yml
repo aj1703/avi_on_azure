@@ -1,0 +1,40 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials_site_a:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - avinetworks.avisdk
+  
+  tasks:
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Create SE Group "{{ item.name }}"-group
+      avi_serviceenginegroup:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        tenant: "{{ tenant | default('admin') }}"
+        name: "{{ item.name }}-grp"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        ha_mode: HA_MODE_SHARED
+        se_name_prefix: "{{ se_prefix }}"
+        instance_flavor: "{{ instance_flavor }}"
+        max_se: "{{ item.max_se_per_grp }}"
+      with_items: "{{ se_groups }}"

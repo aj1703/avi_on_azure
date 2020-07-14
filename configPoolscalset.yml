@@ -1,0 +1,47 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk  
+  
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+
+    - name: Creat Pool as defined in azure scal set
+      avi_pool:
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant | default('admin') }}"
+        default_server_port: 800
+        lb_algorithm: LB_ALGORITHM_ROUND_ROBIN
+        health_monitor_refs:
+          - '/api/healthmonitor?name={{ http_hm_name }}'
+        name: test
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        external_autoscale_groups: "{{item.pool_scale_test}}"
+      with_items: "{{ pool_scale_set }}" 
+  
+    

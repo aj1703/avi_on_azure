@@ -1,0 +1,56 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk  
+  
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+      
+    - name: Configuring DNS Application Profile
+      avi_applicationprofile:
+        avi_credentials: "{{ avi_credentials }}"
+        name: "{{ app_profile_dns_name }}"
+        type: APPLICATION_PROFILE_TYPE_DNS
+        dns_service_profile:
+          dns_over_tcp_enabled: true
+          ecs_stripping_enabled: true
+          domain_names:
+          - "{{ valid_sub_domain }}"
+          negative_caching_ttl: 30
+          aaaa_empty_response: true
+          num_dns_ip: 1
+          error_response: DNS_ERROR_RESPONSE_NONE
+          ttl: 30
+          edns: true
+          admin_email: "{{ admin_email | default('hostmaster')}}"
+          dns_zones:
+          - admin_email: "{{ admin_email | default('hostmaster')}}"
+            domain_name: "{{ authoritative_domain_name }}"
+            name_server: "{{ authoritative_domain_name }}" 
+        preserve_client_ip: "{{ preserve_client_ip_state | default('false')}}"
+        
+        

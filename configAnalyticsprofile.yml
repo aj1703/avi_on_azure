@@ -1,0 +1,126 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip }}"
+
+  roles:
+    - avinetworks.avisdk
+
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Configuring Analytics Profile
+      avi_analyticsprofile:
+        avi_credentials: "{{ avi_credentials }}"
+        hs_event_throttle_window: "{{ hs_event_throttle_window | default('1209600')}}"
+        ondemand_metrics_idle_timeout: "{{ ondemand_metrics_idle_timeout | default('1800')}}"
+        disable_se_analytics: "{{ disable_se_analytics | default('false')}}"
+        apdex_server_rtt_tolerated_factor: "{{ apdex_server_rtt_tolerated_factor | default('4')}}"
+        hs_security_nonpfs_penalty: "{{ hs_security_nonpfs_penalty | default('1')}}"
+        hs_security_tls12_score: "{{ hs_security_tls12_score | default('5')}}"
+        exclude_server_tcp_reset_as_error: "{{ exclude_server_tcp_rest | default('false')}}"
+        hs_min_dos_rate: "{{ min_dos_rate | default('1000')}}"
+        exclude_no_dns_record_as_error: "{{ exclude_no_dns_record | default('false')}}"
+        conn_server_lossy_zero_win_size_event_threshold: "{{ conn_server_lossy_zero_win_size_event_threshold | default('2')}}"
+        hs_max_resources_penalty: "{{ max_resources_penalty | default('25')}}"
+        conn_lossy_total_rexmt_threshold: "{{ conn_lossy_total_rexmt_threshold | default('50')}}"
+        healthscore_max_server_limit: "{{ healthscore_max_server_limit | default('20')}}"
+        hs_pscore_traffic_threshold_l4_client: "{{ hs_pscore_traffic_threshold_l4_client | default('10')}}"
+        exclude_no_valid_gs_member_as_error: "{{ exclude_no_valid_gs_member | default('false')}}"
+        enable_advanced_analytics: "{{ enable_advanced_analytics | default('true')}}"
+        disable_ondemand_metrics: "{{ disable_ondemand_metrics | default('false')}}"
+        hs_security_encalgo_score_rc4: "{{ hs_security_encalgo_score_rc4 | default('2.5')}}"
+        apdex_server_response_threshold: "{{ server_response_threshold | default('400')}}"
+        hs_security_cipherscore_ge128b: "{{ hs_security_cipherscore_ge128b | default('5')}}"
+        hs_performance_boost: "{{ hs_performance_boost | default('0')}}"
+        exclude_invalid_dns_domain_as_error: "{{ exclude_invalid_dns_domain | default('false')}}"
+        #exclude_http_error_codes: ["{{ http_error_code_list | default('none')}}"]
+        hs_max_anomaly_penalty: "{{ hs_max_anomaly_penalty | default('10')}}"
+        exclude_unsupported_dns_query_as_error: "{{ exclude_unsupported_dns_query | default('false')}}"
+        exclude_gs_down_as_error: "{{ gs_down | default('false')}}"
+        apdex_server_response_tolerated_factor: "{{ apdex_server_response_tolerated_factor | default('4')}}"
+        client_log_config:
+          enable_significant_log_collection: "{{ enable_signi_log_collection | default('true')}}"
+          non_significant_log_processing: "{{ non_signi_log_processing | default('LOGS_PROCESSING_SYNC_AND_INDEX_ON_DEMAND')}}"
+          significant_log_processing: "{{ signi_log_processing | default('LOGS_PROCESSING_SYNC_AND_INDEX_ON_DEMAND')}}"
+          filtered_log_processing: "{{ filtered_log_prcessing | default('LOGS_PROCESSING_SYNC_AND_INDEX_ON_DEMAND')}}"
+        disable_server_analytics: "{{ disable_server_analytics | default('false')}}"
+        sip_log_depth: "{{ sip_log_depth | default('20')}}"
+        exclude_client_close_before_request_as_error: "{{ exclude_client_close_before_request | default('false')}}"
+        hs_security_weak_signature_algo_penalty: "{{ hs_security_weak_signature_algo_penalty | default('1')}}"
+        exclude_persistence_change_as_error: "{{ exclude_persistence_change | default('false')}}"
+        conn_server_lossy_timeo_rexmt_threshold: "{{ conn_server_lossy_timeo_rexmt_threshold | default('20')}}"
+        conn_server_lossy_total_rexmt_threshold: "{{ conn_server_lossy_total_rexmt_threshold | default('50')}}"
+        conn_lossy_timeo_rexmt_threshold: "{{ conn_lossy_timeo_rexmt_threshold | default('20')}}"
+        apdex_rtt_tolerated_factor: "{{ apdex_rtt_tolerated_factor | default('4')}}"
+        hs_security_certscore_gt30d: "{{ hs_security_certscore_gt30d | default('5')}}"
+        hs_security_ssl30_score: "{{ hs_security_ssl30_score | default('3.5')}}"
+        conn_server_lossy_ooo_threshold: "{{ conn_server_lossy_ooo_threshold | default('50')}}"
+        apdex_rum_tolerated_factor: "{{ apdex_rum_tolerated_factor | default('4')}}"
+        hs_security_cipherscore_eq000b: "{{ hs_security_cipherscore_eq000b | default('0')}}"
+        hs_security_certscore_le30d: "{{ hs_security_certscore_le30d  | default('4')}}"
+        conn_lossy_zero_win_size_event_threshold: "{{ conn_lossy_zero_win_size_event_threshold | default('2')}}"
+        exclude_syn_retransmit_as_error: "{{ exclude_syn_retransmit | default('false')}}"
+        exclude_dns_policy_drop_as_significant: "{{ dns_policy_drop_as_significant | default('false')}}"
+        apdex_server_rtt_threshold: "{{ apdex_server_rtt_threshold | default('125')}}"
+        hs_security_hsts_penalty: "{{ hs_security_hsts_penalty | default('1')}}"
+        exclude_server_dns_error_as_error: "{{ server_dns_error | default('false')}}"
+        hs_security_tls11_score: "{{ hs_security_tls11_score | default('5')}}"
+        hs_security_certscore_le07d: "{{ hs_security_certscore_le07d  | default('2')}}"
+        hs_security_selfsignedcert_penalty: "{{ hs_security_selfsignedcert_penalty | default('1')}}"
+        hs_pscore_traffic_threshold_l4_server: "{{ hs_pscore_traffic_threshold_l4_server | default('10')}}"
+        hs_security_encalgo_score_none: "{{ hs_security_encalgo_score_none | default('0')}}"
+        disable_vs_analytics: "{{ disable_vs_analytics | default('false')}}"
+        client_log_streaming_config:
+          external_server_port: "{{ log_server_port | default('514')}}"
+          protocol: "{{ log_protocol | default('LOG_STREAMING_PROTOCOL_UDP')}}"
+          syslog_config:
+            significant_log_severity: "{{ significant_log_severity | default('4')}}"
+            filtered_log_severity: "{{ filtered_log_severity | default('5')}}"
+            hostname: AviVantage
+            non_significant_log_severity: "{{ non_significant_log_severity | default('6')}}"
+            facility: 16
+          max_logs_per_second: "{{ max_logs_per_second | default('100')}}"
+          log_types_to_send: "{{ types_of_logs | default('LOGS_ALL')}}"
+        apdex_response_tolerated_factor: "{{ apdex_response_tolerated_factor | default('4')}}"
+        exclude_tcp_reset_as_error: "{{ tcp_reset | default('false')}}"
+        hs_max_security_penalty: "{{ hs_max_security_penalty | default('100')}}"
+        exclude_invalid_dns_query_as_error: "{{ invalid_dns_query | default('false')}}"
+        conn_lossy_ooo_threshold: "{{ conn_lossy_ooo_threshold | default('50')}}"
+        #sensitive_log_profile:
+        #  header_field_rules:
+        #  - action: "{{ senstive_action | default('LOG_FIELD_REMOVE')}}"
+        #    index: "{{ sentive_rule_index }}"
+        #    enabled: "{{ sensitive_field_state | default('true')}}"
+        #    name: "{{ sensitive_rule_name }}"
+        #    match:
+        #      string_group_refs: '/api/stringgroup/?name={{ string_group_name }}'
+        #      match_criteria: "{{ sensitive_match_criteria | default('CONTAINS')}}"
+        hs_security_cipherscore_lt128b: "{{ hs_security_cipherscore_lt128b | default('3.5')}}"
+        hs_security_chain_invalidity_penalty: "{{ hs_security_chain_invalidity_penalty | default('1')}}"
+        hs_security_tls10_score: "{{ hs_security_tls10_score | default('5')}}"
+        hs_security_certscore_expired: "{{ hs_security_certscore_expired | default('0')}}"
+        apdex_response_threshold: "{{ apdex_response_threshold | default('500')}}"
+        apdex_rtt_threshold: "{{ apdex_rtt_threshold | default('250')}}"
+        apdex_rum_threshold: "{{ apdex_rum_threshold | default('5000')}}"
+        name: "{{ analytic_profile_name }}"
+        tenant_ref: "{{ tenant | default('admin')}}"

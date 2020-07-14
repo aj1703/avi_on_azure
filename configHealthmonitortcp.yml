@@ -1,0 +1,33 @@
+---
+- hosts: localhost
+  gather_facts: no
+  
+  connection: local
+  
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials_site_a:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk
+  
+  tasks:
+  - name: Create a HTTP health monitor
+    avi_healthmonitor:
+      avi_credentials: "{{ avi_credentials_site_a }}"
+      name: testtcp
+      state: absent
+      tcp_monitor:
+        tcp_half_open: false
+      send_interval: 10
+      successful_checks: 2
+      type: HEALTH_MONITOR_TCP
+      receive_timeout: 4
+      failed_checks: 2  
+

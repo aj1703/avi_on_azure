@@ -1,0 +1,39 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip }}"
+
+  roles:
+    - avinetworks.avisdk
+
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Configuring Client IP Persistence Profile
+      avi_applicationpersistenceprofile:
+        ip_persistence_profile:
+          persistence_type: PERSISTENCE_TYPE_CLIENT_IP_ADDRESS
+          server_hm_down_recovery: HM_DOWN_PICK_NEW_SERVER
+          ip_persistence_profile: {
+            ip_persistent_timeout: 5
+          }
+        name: test-client-ip  

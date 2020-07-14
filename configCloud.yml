@@ -1,0 +1,47 @@
+# This Script Configures the cloud configuration
+# user need to define all the requiered variable on env_yml under var directory
+
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip }}"
+
+  roles:
+    - avinetworks.avisdk
+    - azure.azure_modules
+
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Configuring Azure Cloud
+      include_role:
+        name: avinetworks.aviconfig
+      vars:
+        avi_config_file: "avi_config_role.yml"
+        avi_credentials:
+          controller: '{{ cluster_leader_ip }}'
+          username: "{{ username}}"
+          password: "{{ password }}"
+          api_version: "{{ api_version }}"
+        
+
+ 

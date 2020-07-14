@@ -1,0 +1,79 @@
+# This Script Configures the controller basic Configuration which inclues
+# Default Password change,SMTP Email,Global tenant Config,DNS Server,NTP serverless
+# It doesnot connect to cloud Connector
+# user need to define all the requiered variable on env_yml under var directory
+---
+- hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+  
+  roles:
+  - avinetworks.avisdk
+
+  tasks:
+    - name: Include vars
+      include_vars:
+        file: vars/env_vars.yml
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Change admin default password
+      avi_useraccount:
+        controller: "{{ cluster_leader_ip }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        api_version: "{{ api_version }}"
+        old_password: "{{ old_password }}"
+
+    - name: Basic Controller Config
+      avi_systemconfiguration:
+        welcome_workflow_complete: true
+        controller: "{{ cluster_leader_ip }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        api_version: "{{ api_version }}"
+        email_configuration:
+          smtp_type: SMTP_LOCAL_HOST
+          from_email: "{{ from_email }}"
+        global_tenant_config:
+          se_in_provider_context: true
+          tenant_access_to_provider_se: true
+          tenant_vrf: false
+        dns_configuration:
+          search_domain: "{{ search_domains }}"
+          server_list:
+            - type: V4
+              addr: "{{ dns_server01 }}"
+            - type: V4
+              addr: "{{ dns_server02 }}"
+        portal_configuration:
+          use_uuid_from_input: false
+          redirect_to_https: true
+          disable_remote_cli_shell: false
+          enable_clickjacking_protection: true
+          enable_http: true
+          enable_https: true
+          password_strength_check: true
+          allow_basic_authentication: false
+        ntp_configuration:
+          ntp_servers:
+            - server:
+                type: DNS
+                addr: "{{ ntp_server01 }}"
+            - server:
+                type: DNS
+                addr: "{{ ntp_server02 }}"
+        default_license_tier: ENTERPRISE_18
+
+

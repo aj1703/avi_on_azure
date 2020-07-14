@@ -1,0 +1,120 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: avinetworks.avisdk
+  # - role: azure.azure_preview_modules
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars: 
+    avi_credentials_site_a:
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+    avi_credentials_site_b: 
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_b }}"   
+
+  tasks:
+
+   
+    - name: Get the Avi version information
+      avi_api_version:
+        avi_credentials: 
+          username: "{{ username }}"
+          password: "{{ password }}"
+          controller: "{{ cluster_leader_ip_site_a }}"
+      register: avi_version
+
+    #- name: Collect Application details Site A
+    #  avi_api_session:
+    #    avi_credentials: "{{ avi_credentials_site_a }}"
+    #    #api_version: "{{ avi_version.obj.version }}"
+    #    http_method: get
+    #    path: virtualservice
+    #    params:
+    #      { name: "{{ vs_site_a }}" }
+    #  register: app_data_site_a
+      
+
+  #  - debug: var=app_data_site_a['obj']['results'][0]['ip_address']['addr']
+  #  - debug: var=app_data_site_a['obj']['results'][0]['uuid']
+
+    #- name: Collect Application details Site B
+    #  avi_api_session:
+    #    avi_credentials: "{{ avi_credentials_site_b }}"
+    #    #api_version: "{{ avi_version.obj.version }}"
+    #    http_method: get
+    #    path: virtualservice
+    #    params:
+    #      { name: "{{ vs_site_b }}" }
+    #  register: app_data_site_b
+
+    - name: Collect cluster details for Site A
+      avi_api_session:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        api_version: "{{ avi_version.obj.version }}"
+        http_method: get
+        path: gslb
+      register: cluster_data_site_a
+
+    - debug: var=cluster_data_site_a['obj']['results'][0]['third_party_sites'][0]['cluster_uuid']
+
+    - name: Collect cluster details for Site B
+      avi_api_session:
+        avi_credentials: "{{ avi_credentials_site_b }}"
+        api_version: "{{ avi_version.obj.version }}"
+        http_method: get
+        path: gslb
+      register: cluster_data_site_b
+
+    - name: Define GSLB Cluster
+      import_role:
+        name: avinetworks.aviconfig
+      vars:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        #api_version: "{{ avi_version.obj.version }}"
+        avi_config:
+          gslbservice:
+            - name: "{{ glsb_service_name }}"
+              controller_health_status_enabled: true
+              down_response:
+                type: GSLB_SERVICE_DOWN_RESPONSE_ALL_RECORDS
+              enabled: true
+              is_federated: true
+              domain_names: "{{ gslb_app_domain_name }}"
+              #health_monitor_refs: '/api/healthmonitor?name=System-GSLB-HTTP'
+              use_edns_client_subnet: false  
+              groups:
+              - priority: 10
+                members:
+                - cluster_uuid: "{{ cluster_data_site_a['obj']['results'][0]['third_party_sites'][0]['cluster_uuid'] }}"
+                  ip:
+                    type: V4
+                    #addr: "{{ thrirdpary_vip_1 }}"
+                  ratio: 1
+                  fqdn: "{{ site1_fqdn }}"
+                  enabled: true
+                enabled: true
+                name: "{{ gslb_pool_name_1 }}"
+                algorithm: GSLB_ALGORITHM_ROUND_ROBIN
+              - priority: 50
+                members:    
+                - cluster_uuid: "{{ cluster_data_site_b['obj']['results'][0]['third_party_sites'][1]['cluster_uuid'] }}"
+                  ip:
+                    type: V4
+                    addr: "{{ thrirdpary_vip_2 }}"
+                  ratio: 1
+                  fqdn: "{{ site2_fqdn }}"
+                  enabled: true
+                enabled: true
+                name: "{{ gslb_pool_name_2 }}"
+                algorithm: GSLB_ALGORITHM_ROUND_ROBIN      
+              min_members: 0
+              health_monitor_scope: GSLB_SERVICE_HEALTH_MONITOR_ALL_MEMBERS
+              pool_algorithm: GSLB_SERVICE_ALGORITHM_PRIORITY
+          

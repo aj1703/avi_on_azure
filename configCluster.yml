@@ -1,0 +1,64 @@
+# This ansible script used to form Avi Controller Cluser, which
+# basically add deployed theree controllers to the leader controller
+# Define Cluster name with Virtual IP Address.
+# user need to define all the requiered variable on env_yml under var directory 
+---
+- hosts: localhost
+  gather_facts: no
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  roles:
+  - avinetworks.avisdk
+
+  tasks:
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+      
+    - name: Get main Cluster Information
+      avi_api_session:
+        controller: "{{ cluster_leader_ip }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        api_version: "{{ api_version }}"
+        http_method: get
+        path: cluster
+      register: cluster_info
+
+    - name: Configure Cluster object
+      avi_cluster:
+        controller: "{{ cluster_leader_ip }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        api_version: "{{ api_version }}"
+        nodes:
+            - name: "{{ cluster_leader_ip }}"
+              ip:
+                type: V4
+                addr: "{{ cluster_leader_ip }}"
+              password: "{{ password }}"
+            - name: "{{ cluster_follower1_ip }}"
+              ip:
+                type: V4
+                addr: "{{ cluster_follower1_ip }}"
+              password: "{{ old_password }}"
+            - name: "{{ cluster_follower2_ip }}"
+              ip:
+                type: V4
+                addr: "{{ cluster_follower2_ip }}"
+              password: "{{ old_password }}"
+        name: "{{ cluster_name }}"
+        uuid: "{{ cluster_info['obj'].uuid }}"
+        virtual_ip: 
+            addr: "{{ cluster_vip }}"
+            type: V4

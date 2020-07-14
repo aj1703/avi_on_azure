@@ -1,0 +1,107 @@
+
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+
+  vars_files: 
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk  
+  
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Create a HTTP health monitor
+      avi_healthmonitor:
+        avi_credentials: "{{ avi_credentials }}"
+        name: "{{ item.hm_name }}"
+        tcp_monitor:
+          tcp_half_open: false
+        send_interval: 10
+        successful_checks: 2
+        type: HEALTH_MONITOR_TCP
+        receive_timeout: 4
+        failed_checks: 2  
+      with_items: "{{ apps }}"   
+
+    - name: Create Pool "{{ item.poolname }}"
+      avi_pool:
+        avi_credentials: "{{ avi_credentials }}"
+        name: "{{ item.poolname }}"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        health_monitor_refs:
+          - '/api/healthmonitor?name={{ item.hm_name }}'
+        servers: "{{ item.pool_servers }}"
+        ssl_profile_ref: '/api/sslprofile?name={{ item.ssl_profile }}'
+      with_items: "{{ apps }}"
+
+    - name: Creating vsvip
+      avi_vsvip:
+        name: "{{ item.vs_vip_name }}"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant | default('admin') }}"
+        vip:
+        - auto_allocate_floating_ip: false
+          auto_allocate_ip: true
+          avi_allocated_fip: true
+          avi_allocated_vip: true
+          ipam_network_subnet:
+            network_ref: '/api/network/{{ item.network_name }}'
+            subnet:
+              ip_addr:
+                addr: "{{ item.subnet }}"
+                type: V4
+              mask: "{{ item.subnet_mask }}"
+            subnet_uuid: "{{ item.network_name }}"
+          network_ref: '/api/network/{{ item.network_name }}'
+          subnet:
+            ip_addr:
+              addr: "{{ item.subnet }}"
+              type: V4
+            mask: "{{ item.subnet_mask }}"
+          subnet_uuid: "{{ item.network_name }}"
+          vip_id: "0"
+      loop: 
+        "{{ apps }}"
+
+    - name: Create virtual Service
+      avi_virtualservice:
+        name: "{{ item.vs_name }}"
+        avi_credentials: "{{ avi_credentials }}"
+        application_profile_ref: '/api/applicationprofile/?name={{ "System-HTTP" }}'
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        cloud_type: CLOUD_AZURE
+        network_profile_ref: '/api/networkprofile/?name={{ network_profile | default("System-TCP-Proxy")}}'
+        pool_ref: '/api/pool/?name={{ item.poolname }}'
+        services:
+        - enable_ssl: true
+          port: "{{ item.vs_port }}"
+        tenant: "{{ tenant | default('admin') }}"
+        vsvip_ref: '/api/vsvip/?name={{ item.vs_vip_name }}'
+        #analytics_profile_ref: '/api/analyticsprofile/?name={{ analytic_profile_name }}'
+        se_group_ref: '/api/serviceenginegroup/?name={{ item.se_grps }}'
+        ssl_profile_ref: '/api/sslprofile/?name={{ item.ssl_profile }}'
+        ssl_key_and_certificate_refs: '/api/sslkeyandcertificate/?name={{ item.ssl_cert }}'
+      with_items: "{{ apps }}" 
+

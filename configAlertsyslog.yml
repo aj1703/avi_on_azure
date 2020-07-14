@@ -1,0 +1,97 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+
+  vars_files: 
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk  
+  
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Create Alert Syslog object to forward all events to external syslog server
+      avi_alertsyslogconfig:
+        avi_credentials: "{{ avi_credentials }}"
+        syslog_servers:
+            - tls_enable: false
+              udp: true
+              syslog_server_port: "{{ syslogserverport | default('514') }}"
+              syslog_server: "{{ syslogserver1 }}"
+              format: '{{ syslogformat }}'
+            - tls_enable: false
+              udp: true
+              syslog_server_port: "{{ syslogserverport | default('514')}}"
+              syslog_server: "{{ syslogserver2 }}"
+              format: '{{ syslogformat }}'
+        tenant: "{{ tenant | default('admin') }}"
+        name: "{{ alertsyslogconfigname }}"
+
+    - name: create SnmpTrapProfile object
+      avi_snmptrapprofile:
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant | default('admin') }}"
+        name: "{{ snmptrapprofilename }}"
+        trap_servers:
+            - version: "{{ snmpversion }}"
+              ip_addr:
+                    type: V4
+                    addr: "{{ trapserverip }}"
+              port: "{{ trapserverport | default('162')}}"
+              community: "{{ snmpcommunity }}"
+
+    - name: create AlertEmailConfig object
+      avi_alertemailconfig:
+        avi_credentials: "{{ avi_credentials }}"
+        to_emails: "{{ alert_to_email }}"
+        cc_emails: "{{ alert_cc_email }}"
+        name: "{{ emailconfigname }}"
+
+    - name: create ActionGroupConfig object
+      avi_actiongroupconfig:
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant | default('admin') }}"
+        external_only: false
+        snmp_trap_profile_ref: '/api/snmptrapprofile/?name={{ snmptrapprofilename }}'
+        syslog_config_ref: '/api/alertsyslogconfig/?name={{ alertsyslogconfigname }}'
+        email_config_ref: '/api/alertemailconfig/?name={{ emailconfigname }}'
+        level: "{{ alertlevel | default('ALERT_HIGH') }}"
+        name: "{{ actiongroupconfigname }}"
+
+    - name: create AlertConfig object
+      avi_alertconfig:
+        avi_credentials: "{{ avi_credentials }}"
+        tenant: "{{ tenant | default('admin') }}"    
+        category: REALTIME
+        expiry_time: "{{ alertexpirytime | default('86400') }}"
+        rolling_window: "{{ alertrollingwindow | default('300') }}"
+        source: "{{ alertsource | default('EVENT_LOGS') }}"
+        alert_rule:
+            operator: OPERATOR_AND
+            sys_event_rule:
+                - event_id: VS_DOWN
+                  not_cond: false
+        threshold: "{{ alertthreshold | default('1') }}" 
+        throttle: "{{ alertthrottle | default('600') }}"
+        action_group_ref: '/api/actiongroupconfig/?name={{ actiongroupconfigname }}'
+        name: "{{ alertconfigname }}"

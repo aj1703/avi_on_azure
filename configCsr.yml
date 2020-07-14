@@ -1,0 +1,66 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials_site_a:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - avinetworks.avisdk
+
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Create a SSL Key and Certificate
+      avi_sslkeyandcertificate:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        certificate:
+            self_signed: false
+            subject:
+              common_name: "{{ csr_cname }}"
+              email_address: "{{ csr_email }}"
+              organization_unit: "{{ csr_orgunit }}"
+              organization: "{{ csr_org }}"
+              locality: "{{ csr_location }}"
+              state: "{{ csr_state }}"
+              country: "{{ csr_country }}"
+            subject_alt_names: "{{ csr_subalt_name }}"  
+        key_base64: true
+        format: SSL_PEM
+        certificate_base64: true
+        key_params:
+          rsa_params:
+            key_size: SSL_KEY_2048_BITS
+            exponent: 65537
+          algorithm: SSL_KEY_ALGORITHM_RSA      
+        type: SSL_CERTIFICATE_TYPE_VIRTUALSERVICE
+        name: "{{ csr_name }}"
+
+    - name: get csr key value
+      delay: 10
+      avi_api_session:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        http_method: get
+        path: 'sslkeyandcertificate/?name={{ csr_name }}'
+      register: csr
+
+    - name: Printing CSR Key Value
+      debug: 
+        var:  csr.obj.results.0.certificate.certificate_signing_request

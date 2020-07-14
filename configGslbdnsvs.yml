@@ -1,0 +1,76 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files: "{{ var_file }}"
+  #- vars/env_vars.yml
+
+  vars:
+    avi_credentials_site_a:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+    
+    avi_credentials_site_b: 
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_b }}"  
+
+  roles:
+    - avinetworks.avisdk
+
+  tasks:
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Creating GLSB Service Engine Group
+      avi_serviceenginegroup:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        tenant: "{{ tenant | default('admin') }}"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        name: "{{ gslb_se_grp_name }}"
+        ha_mode: HA_MODE_SHARED
+        se_name_prefix: "{{ gslb_se_name_prefix }}"
+        placement_mode: PLACEMENT_MODE_AUTO
+        instance_flavor: "{{ instance_flavor }}"
+        buffer_se: 0
+
+    - name: Configuring DNS vsvip on Site A
+      avi_vsvip:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        name: "{{ dns_vsvip }}"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        vip:
+          - auto_allocate_ip: true
+            subnet_uuid: "{{ vip_subnet }}"
+            auto_allocate_floating_ip: "{{ auto_allocate_floating_ip | default('false')}}"
+            vip_id: "0"
+    
+    - name: Configuring DNS Virtual Service on Site A          
+      avi_virtualservice:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        name: "{{ dns_vs_name }}"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        application_profile_ref: '/api/applicationprofile?name=System-DNS'
+        network_profile_ref: '/api/networkprofile/?name=System-UDP-Per-Pkt'
+        services:
+          - port: 53
+          - port: 53
+            override_network_profile_ref: '/api/networkprofile/?name=System-TCP-Proxy'
+        vsvip_ref: '/api/vsvip/?name={{ dns_vsvip }}'
+        se_group_ref: '/api/serviceenginegroup/?name={{ gslb_se_grp_name }}'
+
+    
+        
+
+    
+

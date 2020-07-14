@@ -1,0 +1,57 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  connection: local
+
+  vars_files: "{{ var_file }}"
+  #- vars/env_vars.yml
+
+  vars:
+    avi_credentials:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk  
+  
+  tasks:
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+      
+    - name: Configuring Application Profile L4
+      avi_applicationprofile:
+        avi_credentials: "{{ avi_credentials }}"
+        name: "{{ item.app_profile_l4_name }}"
+        type: APPLICATION_PROFILE_TYPE_L4
+        tcp_app_profile:
+          proxy_protocol_version: PROXY_PROTOCOL_VERSION_1
+          ssl_client_certificate_mode: SSL_CLIENT_CERTIFICATE_NONE
+          proxy_protocol_enabled: true
+          preserve_client_port: false
+          dos_rl_profile:
+            rl_profile:
+              client_ip_connections_rate_limit:
+              count: 0
+              explicit_tracking: false
+              period: 1
+              action:
+                status_code: HTTP_LOCAL_RESPONSE_STATUS_CODE_429
+                type: RL_ACTION_NONE
+              burst_sz: 0
+              fine_grain: false
+          dos_profile:
+          thresh_period: 5
+          preserve_client_ip: false
+      with_items: "{{ app_profile }}"  

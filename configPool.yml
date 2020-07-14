@@ -1,0 +1,47 @@
+---
+- hosts: localhost
+  gather_facts: no
+  
+  connection: local
+  
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials_site_a:
+      api_version: "{{ api_version }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+
+  roles:
+    - role: avinetworks.avisdk
+  
+  tasks:
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Create Pool "{{ item.poolname }}"
+      avi_pool:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        avi_api_update_method: patch
+        avi_api_patch_op: replace
+        name: "{{ item.poolname }}"
+        cloud_ref: '/api/cloud?name={{ cloud_name }}'
+        application_persistence_profile_ref: '/api/applicationpersistenceprofile/?name={{ persistence_profile }}'
+        health_monitor_refs:
+          - '/api/healthmonitor?name={{ item.hm_name }}'
+        ssl_profile_ref: '/api/sslprofile?name={{ item.ssl_profile }}'  
+        servers: "{{ item.pool_servers }}"
+        tenant: "{{ item.tenant }}"
+      with_items: "{{ apps }}"
+
+

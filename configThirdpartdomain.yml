@@ -1,0 +1,129 @@
+---
+- hosts: localhost
+  connection: local
+
+  vars_files:
+  - vars/env_vars.yml
+
+  vars:
+    avi_credentials_site_a:
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_a }}"
+    avi_credentials_site_b: 
+      username: "{{ username }}"
+      password: "{{ password }}"
+      controller: "{{ cluster_leader_ip_site_b }}"
+
+  roles:
+    - avinetworks.avisdk
+
+  tasks:
+
+    - name: Get the Avi version information
+      avi_api_version:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+      register: avi_version
+
+    - name: Wait for Controller be ready
+      uri:
+        validate_certs: False
+        url: "http://{{ cluster_leader_ip_site_a }}/"
+        method: GET
+        status_code: 200,302,301,503
+      register: statusCode_output
+      until: statusCode_output.status == 200
+      retries: 120
+      delay: 60
+
+    - name: Get Cluster UUIDs on Controller site A
+      avi_api_session:
+        avi_credentials: "{{ avi_credentials_site_a }}"
+        api_version: "{{ avi_version.obj.version }}"
+        http_method: get
+        path: "cluster/"
+      register: cluster_data_site_a
+#
+    #- name: Get Cluster UUIDs on Controller Site B
+    #  avi_api_session:
+    #    avi_credentials: "{{ avi_credentials_site_b }}"
+    #    api_version: "{{ avi_version.obj.version }}"
+    #    http_method: get
+    #    path: "cluster/"
+    #  register: cluster_data_site_b     
+#
+    #- name: Get DNS VS UUID Details Site A
+    #  avi_api_session:
+    #    avi_credentials: "{{ avi_credentials_site_a }}"
+    #    api_version: "{{ avi_version.obj.version }}"
+    #    http_method: get
+    #    path: virtualservice
+    #    params:
+    #      name: "{{ dns_vs_name }}"
+    #  register: dns_vs_site_a
+#
+    #- name: Get DNS VS UUID Details Site B
+    #  avi_api_session:
+    #    avi_credentials: "{{ avi_credentials_site_b }}"
+    #    api_version: "{{ avi_version.obj.version }}"
+    #    http_method: get
+    #    path: virtualservice
+    #    params:
+    #      name: "{{ dns_vs_name }}"
+    #  register: dns_vs_site_b  
+#
+#
+    #- name: Configuring GSLB Subdomain
+    #  avi_gslb:
+    #    avi_credentials: "{{ avi_credentials_site_a }}"
+    #    api_version: 18.2.7
+    #    leader_cluster_uuid: "{{ cluster_data_site_a['obj'].uuid }}"
+    #    third_party_sites: 
+    #      name: terffff
+    #      enabled: true
+
+        
+  
+    - name: Configuring GSLB Subdomain
+      avi_gslb:
+          avi_credentials: "{{ avi_credentials_site_a }}"
+          api_version: "{{ avi_version.obj.version }}"
+          name: gslb.avi.com
+          #sites:
+          #  - username: "{{ username }}"
+          #    name: "{{ site_1_name }}"
+          #    ip_addresses:
+          #    - type: V4
+          #      addr: "{{ site_1_ipaddress }}"
+          #    enabled: true
+          #    member_type: GSLB_ACTIVE_MEMBER
+          #    cluster_uuid: "{{ cluster_data_site_a['obj'].uuid }}"
+          #    hm_shard_enabled: false
+          #    password: "{{ password }}"
+          #    port: 443
+          #    dns_vses:
+          #      - dns_vs_uuid: "{{ dns_vs_site_a['obj']['results'][0]['uuid'] }}"
+          #        domain_names:
+          #          - "{{ gslb_domain_name }}"
+          #  - username: "{{ username }}"
+          #    name: "{{ site_2_name }}"
+          #    ip_addresses:
+          #    - type: V4
+          #      addr: "{{ site_2_ipaddress }}"
+          #    enabled: true
+          #    member_type: GSLB_ACTIVE_MEMBER
+          #    cluster_uuid: "{{ cluster_data_site_b['obj'].uuid }}"
+          #    hm_shard_enabled: false
+          #    password: "{{ password }}"
+          #    port: 443
+          #    dns_vses:
+          #      - dns_vs_uuid: "{{ dns_vs_site_b['obj']['results'][0]['uuid'] }}" 
+          #        domain_names:
+          #          - "{{ gslb_domain_name }}"
+          third_party_sites:  
+          - cluster_uuid: 
+            enabled: true
+            name: ee
+          #dns_configs:
+          #  - domain_name: "{{ gslb_domain_name }}"
+          leader_cluster_uuid: "{{ cluster_data_site_a['obj'].uuid }}"

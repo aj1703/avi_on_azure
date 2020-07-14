@@ -1,0 +1,37 @@
+
+avi_config:
+  avi_cloud_discovery_wait: 450
+  cloudconnectoruser:
+    - name: "{{ item.cloud_user }}"
+      azure_serviceprincipal:
+        authentication_token: "{{ item.client_secret }}"
+        tenant_id: "{{ item.tenant_id }}"
+        application_id: "{{ item.client_id }}"
+      with_items: "{{ azure_principles }}"  
+     
+      #tenant: 07f53873-c252-4521-8c71-591a3d5b42b6
+  #cloudconnectoruser:
+  #  - name: azureuser
+  #    azure_userpass:
+  #      password: "{{ azure_password }}"
+  #      tenant_name: "{{ azure_tenant }}"
+  #      username: "{{ azure_user }}"
+  #    tenant: "{{ tenant | default('admin') }}"    
+  
+  cloud:
+    - name: "{{ item.cloud_name }}"
+      vtype: CLOUD_AZURE
+      azure_configuration:
+        cloud_credentials_ref: '/api/cloudconnectoruser/?name={{ item.cloud_user }}'
+        location: "{{ item.location }}"
+        network_info:
+        - se_network_id: '{{ item.se_network_id }}'
+          virtual_network_id: "/subscriptions/{{ item.subscription_id }}/resourceGroups/{{ item.resource_group }}/providers/Microsoft.Network/virtualNetworks/{{ item.virtual_network }}"
+        resource_group: "{{ item.resource_group }}"
+        subscription_id: "{{ item.subscription_id }}"
+      with_items: "{{ cloud }}"  
+
+
+      
+  
+  

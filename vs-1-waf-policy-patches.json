@@ -1,0 +1,49 @@
+{
+  "waf_profile_ref": "/api/wafprofile/?name=test98",
+  "paranoia_level": "WAF_PARANOIA_LEVEL_LOW",
+  "allow_mode_delegation": true,
+  "name": "efgg",
+  "whitelist": 
+  {
+    "rules": [
+      {
+        "index": 0,
+        "enable": true,
+        "name": "in",
+        "actions": [
+          "WAF_POLICY_WHITELIST_ACTION_CONTINUE"
+        ],
+        "match": {
+          "client_ip": {
+            "addrs": [
+              {
+                "type": "V4",
+                "addr": "1.1.1.1"
+              }
+            ],
+            "match_criteria": "IS_IN"
+          }
+        }
+      }
+    ]
+  },
+  "crs_groups": [
+    {
+      "rules": [
+        {
+          "enable": true,
+          "name": "Initialize inbound_anomaly_score_threshold",
+          "rule_id": "901100"
+        }
+      ],
+      "index": 0,
+      "enable": true,
+      "name": "CRS_901_Initialization"
+    }
+  ],
+  "mode": "WAF_MODE_DETECTION_ONLY",
+  "enable_app_learning": true,
+  "failure_mode": "WAF_FAILURE_MODE_OPEN"
+}
+
+
